@@ -1,0 +1,35 @@
+name: RAPTOR Wheat — Daily Fetch
+
+on:
+  schedule:
+    - cron: '30 5 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installa dipendenze
+        run: pip install yfinance pandas
+
+      - name: Esegui fetch
+        run: python wheat_fetch.py
+
+      - name: Commit wheat.json
+        run: |
+          git config user.name  "RAPTOR Bot"
+          git config user.email "raptor-bot@noreply.github.com"
+          git add wheat.json
+          git diff --staged --quiet || git commit -m "🌾 Wheat data $(date +'%d/%m/%Y %H:%M')"
+          git pull --rebase origin main
+          git push
