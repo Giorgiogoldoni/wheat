@@ -149,9 +149,12 @@ def main():
     cbot = yf.download("ZW=F", start="2000-01-01", interval="1d",
                        auto_adjust=True, progress=False)
 
-    cbot_closes = [round(float(c),4) for c in cbot['Close'].values]
-    cbot_highs  = [round(float(c),4) for c in cbot['High'].values]
-    cbot_lows   = [round(float(c),4) for c in cbot['Low'].values]
+    # Appiattisci MultiIndex se presente (yfinance recente)
+    if hasattr(cbot.columns, 'levels'):
+        cbot.columns = cbot.columns.get_level_values(0)
+    cbot_closes = [round(float(c),4) for c in cbot['Close'].tolist()]
+    cbot_highs  = [round(float(c),4) for c in cbot['High'].tolist()]
+    cbot_lows   = [round(float(c),4) for c in cbot['Low'].tolist()]
     cbot_dates  = [ts.strftime('%Y-%m-%d') for ts in cbot.index]
     print(f"CBOT: {len(cbot_closes)} barre ({cbot_dates[0]} → {cbot_dates[-1]})")
 
@@ -174,10 +177,12 @@ def main():
     whl = yf.download("3WHL.MI", start="2018-01-01", interval="1d",
                       auto_adjust=True, progress=False)
 
-    whl_closes  = [round(float(c),4) for c in whl['Close'].values]
-    whl_highs   = [round(float(c),4) for c in whl['High'].values]
-    whl_lows    = [round(float(c),4) for c in whl['Low'].values]
-    whl_volumes = [int(v) for v in whl['Volume'].values]
+    if hasattr(whl.columns, 'levels'):
+        whl.columns = whl.columns.get_level_values(0)
+    whl_closes  = [round(float(c),4) for c in whl['Close'].tolist()]
+    whl_highs   = [round(float(c),4) for c in whl['High'].tolist()]
+    whl_lows    = [round(float(c),4) for c in whl['Low'].tolist()]
+    whl_volumes = [int(v) for v in whl['Volume'].tolist()]
     whl_dates   = [ts.strftime('%Y-%m-%d') for ts in whl.index]
     print(f"3WHL: {len(whl_closes)} barre ({whl_dates[0]} → {whl_dates[-1]})")
 
