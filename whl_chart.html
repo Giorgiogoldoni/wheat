@@ -53,6 +53,20 @@ body{background:#1a1208;color:#e8dcc8;font-family:var(--font-cond);overflow:hidd
 /* LINK */
 .btn-back{background:transparent;border:1px solid #3a2808;color:#8a7050;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:10px;font-family:var(--font-cond);letter-spacing:1px;text-decoration:none;transition:all .12s}
 .btn-back:hover{border-color:var(--wheat);color:var(--wheat)}
+
+/* SEGNALI RIEPILOGO */
+.signals-bar{background:#120d04;border-top:1px solid #3a2808;padding:6px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex-shrink:0}
+.sig-title{font-size:9px;color:#8a7050;font-family:var(--font-cond);font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.sig-item{display:flex;align-items:center;gap:5px;background:#2a1e08;border:1px solid #3a2808;border-radius:4px;padding:3px 8px;font-size:9px;font-family:var(--font-mono)}
+.sig-item.buy3{border-color:#2f9e44;background:#0a2e14}
+.sig-item.buy2{border-color:#1971c2;background:#0a1a2e}
+.sig-item.sell{border-color:#c92a2a;background:#2e0808}
+.sig-arrow{font-size:11px;font-weight:700}
+.sig-date{color:#8a7050}
+.sig-price{font-weight:700}
+.btn-pdf{background:#c8960c;border:none;color:#1a1208;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:10px;font-family:var(--font-cond);font-weight:800;letter-spacing:1px;margin-left:auto;transition:all .12s}
+.btn-pdf:hover{background:#e8b020}
+
 </style>
 </head>
 <body>
@@ -377,7 +391,147 @@ function drawChart() {
 }
 
 window.addEventListener('resize',()=>{if(D)drawChart();});
+
+
+// ═══ RIEPILOGO SEGNALI ════════════════════════════
+function renderSignals() {
+  const w = D.whl;
+  const total = w.closes.length;
+  const n = Math.min(currentTF, total);
+  const sl = total - n;
+  const sigs  = w.signals.slice(sl);
+  const dates = w.dates.slice(sl);
+  const closes= w.closes.slice(sl);
+
+  const collected = [];
+  let prev = null;
+  sigs.forEach((s, i) => {
+    if (s && s !== prev && closes[i]) {
+      collected.push({ sig: s, date: dates[i], price: closes[i] });
+      prev = s;
+    }
+  });
+
+  // Mostra ultimi 12 segnali
+  const last12 = collected.slice(-12);
+  const colMap = { BUY3: 'buy3', BUY2: 'buy2', SELL: 'sell', WATCH: '' };
+  const arrowMap = { BUY3: '▲', BUY2: '△', SELL: '▼', WATCH: '◇' };
+  document.getElementById('sigList').innerHTML = last12.map(s =>
+    `<div class="sig-item ${colMap[s.sig]||''}">
+      <span class="sig-arrow" style="color:${s.sig.includes('BUY')?'#69db7c':'#ff6b6b'}">${arrowMap[s.sig]||'?'}</span>
+      <span class="sig-price">${s.sig}</span>
+      <span class="sig-date">${s.date}</span>
+      <span class="sig-price">${s.price.toFixed(4)}</span>
+    </div>`
+  ).join('');
+}
+
+// ═══ PDF REGOLE ══════════════════════════════════
+function downloadPDF() {
+  const w = D?.whl;
+  const lc = w?.closes?.filter(v=>v).at(-1);
+  const r14 = w?.rsi14?.filter(v=>v).at(-1);
+  const r5  = w?.rsi5?.filter(v=>v).at(-1);
+  const ao  = w?.ao?.at(-1);
+  const kf  = w?.kama_fast?.filter(v=>v).at(-1);
+  const ks  = w?.kama_slow?.filter(v=>v).at(-1);
+
+  const html2 = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  body{font-family:'Segoe UI',sans-serif;max-width:680px;margin:40px auto;color:#212529;font-size:13px;line-height:1.6}
+  h1{color:#c8960c;font-size:22px;border-bottom:3px solid #c8960c;padding-bottom:8px;margin-bottom:20px}
+  h2{color:#495057;font-size:15px;margin:24px 0 8px;padding-left:10px;border-left:3px solid #c8960c}
+  table{width:100%;border-collapse:collapse;margin:10px 0 20px;font-size:12px}
+  thead th{background:#1a1208;color:#c8960c;padding:7px 10px;text-align:left;font-weight:700}
+  tbody tr{border-bottom:1px solid #dee2e6}
+  tbody tr:nth-child(even){background:#f8f9fa}
+  td{padding:6px 10px}
+  .buy3{color:#2f9e44;font-weight:700} .buy2{color:#1971c2;font-weight:700}
+  .sell{color:#c92a2a;font-weight:700} .warn{color:#e67700;font-weight:700}
+  .box{background:#fff9db;border:1px solid #ffd43b;border-radius:5px;padding:12px 16px;margin:12px 0;font-size:12px;color:#7a5c00}
+  .stato{background:#f8f9fa;border-radius:5px;padding:12px 16px;margin:12px 0;font-size:12px}
+  .footer{margin-top:40px;padding-top:12px;border-top:1px solid #dee2e6;font-size:10px;color:#868e96}
+</style></head><body>
+
+<h1>🌾 3WHL — Regole Operative RAPTOR</h1>
+<p style="color:#868e96;font-size:11px">Generato il ${new Date().toLocaleString('it-IT')} · WisdomTree Wheat 3x Daily Leveraged ETP</p>
+
+<div class="stato">
+  <strong>📊 Stato attuale</strong> — ${new Date().toLocaleDateString('it-IT')}<br>
+  Prezzo: <strong>${lc?.toFixed(4)||'—'}</strong> · KAMA Fast: ${kf?.toFixed(4)||'—'} · KAMA Slow: ${ks?.toFixed(4)||'—'}<br>
+  RSI14: ${r14?.toFixed(1)||'—'} · RSI5: ${r5?.toFixed(1)||'—'} · AO: ${ao?.toFixed(4)||'—'}<br>
+  Carico Giorgio: <strong>0.2300</strong> · 50.000 quote · P&L: <strong style="color:${lc<0.23?'#c92a2a':'#2f9e44'}">${lc?((lc-0.23)/0.23*100).toFixed(2)+'%':'—'}</strong>
+</div>
+
+<h2>🟢 BUY3 — Entrata confermata</h2>
+<table><thead><tr><th>Condizione</th><th>Soglia</th><th>Significato</th></tr></thead><tbody>
+<tr><td>Zona</td><td class="buy3">LONG_CONF</td><td>Prezzo &gt; KAMA Fast &gt; KAMA Slow</td></tr>
+<tr><td>AO (EMA3−EMA13)</td><td class="buy3">&gt; 0</td><td>Momentum positivo</td></tr>
+<tr><td>Volume Ratio</td><td class="buy3">≥ 2.0x</td><td>Interesse reale del mercato</td></tr>
+<tr><td>Baff (barre sopra KAMA)</td><td class="buy3">≥ 3</td><td>Momentum continuativo</td></tr>
+<tr><td>ER (Efficiency Ratio)</td><td class="buy3">≥ 0.35</td><td>Mercato direzionale, non laterale</td></tr>
+<tr><td>Gap KAMA Fast/Slow</td><td class="buy3">≥ 0.3%</td><td>Evita falsi crossover marginali</td></tr>
+</tbody></table>
+
+<h2>🔵 BUY2 — Entrata anticipata</h2>
+<table><thead><tr><th>Condizione</th><th>Soglia</th><th>Significato</th></tr></thead><tbody>
+<tr><td>Zona</td><td class="buy2">LONG_EARLY</td><td>Prezzo &gt; KAMA Fast ma sotto KAMA Slow</td></tr>
+<tr><td>AO</td><td class="buy2">&gt; 0</td><td>Momentum positivo</td></tr>
+<tr><td>Volume Ratio</td><td class="buy2">≥ 1.5x</td><td>Soglia ridotta rispetto a BUY3</td></tr>
+<tr><td>Baff</td><td class="buy2">≥ 2</td><td>Almeno 2 barre consecutive sopra KAMA</td></tr>
+<tr><td>ER</td><td class="buy2">≥ 0.35</td><td>Mercato direzionale</td></tr>
+</tbody></table>
+
+<h2>🔴 SELL — Uscita</h2>
+<table><thead><tr><th>Condizione</th><th>Soglia</th><th>Azione</th></tr></thead><tbody>
+<tr><td>Zona USCITA</td><td class="sell">Prezzo &lt; KAMA Slow (&lt;2%)</td><td>Valutare uscita</td></tr>
+<tr><td>Zona STOP</td><td class="sell">Prezzo &gt;2% sotto KAMA Slow</td><td>Uscita immediata</td></tr>
+</tbody></table>
+
+<h2>⚡ RSI Cross — Filtro qualità</h2>
+<table><thead><tr><th>Segnale</th><th>Condizione</th><th>Impatto storico</th></tr></thead><tbody>
+<tr><td class="buy3">↑ Bull Cross</td><td>RSI5 supera RSI14 dal basso</td><td>+22pp Win Rate vs neutro</td></tr>
+<tr><td class="sell">↓ Bear Cross</td><td>RSI5 scende sotto RSI14</td><td>Segnale di debolezza</td></tr>
+</tbody></table>
+
+<h2>🎯 Regole accumulo 3WHL (strategia mediazione)</h2>
+<table><thead><tr><th>Livello</th><th>Condizione di ingresso</th><th>Carico medio risultante</th></tr></thead><tbody>
+<tr><td><strong>0.110</strong></td><td>RSI5 &gt; RSI14 (cross bull) + Volume &gt; media</td><td>~0.1700 con 50k aggiuntive</td></tr>
+<tr><td><strong>0.100</strong></td><td>RSI5 &gt; RSI14 + AO positivo</td><td>~0.1433 con 100k aggiuntive</td></tr>
+<tr><td><strong>0.0959</strong></td><td>Minimo storico — solo con conferma bull forte</td><td>~0.1400 con 100k aggiuntive</td></tr>
+</tbody></table>
+
+<div class="box">
+  <strong>⚠️ Avvertenza 3WHL:</strong> ETP a leva 3x sul grano. Il volatility decay erode il capitale in mercati laterali.
+  Non mediare mai in trend ribassista confermato (zona STOP). Attendere sempre RSI cross bullish prima di ogni accumulo.
+  Luglio storicamente: avg +0.17% WR 48.8% su 25 anni — mese neutro, non il migliore per ingressi aggressivi.
+</div>
+
+<div class="footer">RAPTOR Wheat · giorgiogoldoni.github.io/wheat · Solo uso educativo — verificare sempre prima di operare</div>
+</body></html>`;
+
+  const blob = new Blob([html2], {type:'text/html'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href=url; a.download='3WHL_Regole_RAPTOR.html';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// Override drawChart per chiamare renderSignals dopo
+const _origDraw = drawChart;
+function drawChart() {
+  _origDraw();
+  if(D) renderSignals();
+}
+
 init();
 </script>
+
+<div class="signals-bar" id="signalsBar">
+  <span class="sig-title">📍 Segnali storici</span>
+  <span id="sigList" style="display:flex;gap:6px;flex-wrap:wrap"></span>
+  <button class="btn-pdf" onclick="downloadPDF()">📄 Regole PDF</button>
+</div>
+
 </body>
 </html>
