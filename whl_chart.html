@@ -122,6 +122,7 @@ async function init() {
     D = await r.json();
     updateStats();
     drawChart();
+    renderSignals();
   } catch(e) {
     document.getElementById('chart-inner').textContent = '❌ '+e.message;
   }
@@ -132,7 +133,7 @@ function setTF(bars) {
   document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('act'));
   const map={63:'tf3m',126:'tf6m',252:'tf1a',756:'tf3a',9999:'tfAll'};
   if(map[bars]) document.getElementById(map[bars]).classList.add('act');
-  if(D) drawChart();
+  if(D) { drawChart(); renderSignals(); }
 }
 
 function updateStats() {
@@ -517,12 +518,7 @@ function downloadPDF() {
   a.click(); URL.revokeObjectURL(url);
 }
 
-// Override drawChart per chiamare renderSignals dopo
-const _origDraw = drawChart;
-function drawChart() {
-  _origDraw();
-  if(D) renderSignals();
-}
+// renderSignals viene chiamata da init() e setTF() — non serve override
 
 init();
 </script>
