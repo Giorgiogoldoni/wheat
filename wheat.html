@@ -112,6 +112,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-si
     <div class="chart-label">Prezzo CBOT (cents/bushel) · Rosso = KAMA Fast · Viola = KAMA Slow</div>
     <div id="cботChart"></div>
   </div>
+  <div class="section-title">🧱 Renko CBOT Wheat — ATR-based</div>
+  <div class="chart-wrap">
+    <div class="chart-label" id="renkoLabel">Mattone = ATR(14) medio del periodo · Verde = rialzo · Rosso = ribasso · Asse orizzontale = numero di mattoni, NON tempo</div>
+    <div id="renkoChart"></div>
+  </div>
 </div>
 
 <!-- TAB ANTONACCI -->
@@ -331,6 +336,85 @@ function renderCBOTChart() {
   for(let i=0;i<N;i+=step) if(cbot.dates[i]) txt(xPos(i),H-PAD.b+10,cbot.dates[i].slice(0,7),'#adb5bd',7,'middle',svg);
 
   document.getElementById('cботChart').appendChild(svg);
+
+  drawRenkoCBOT(cbot);
+}
+
+// ── RENKO (ATR-based) ─────────────────────────────
+function calcATRSeries(highs, lows, closes) {
+  const tr = [];
+  for (let i=0;i<closes.length;i++) {
+    if (i===0 || !closes[i-1]) { tr.push(highs[i]-lows[i]); continue; }
+    tr.push(Math.max(
+      highs[i]-lows[i],
+      Math.abs(highs[i]-closes[i-1]),
+      Math.abs(lows[i]-closes[i-1])
+    ));
+  }
+  return tr;
+}
+
+function buildRenkoBricks(closes, brickSize) {
+  const bricks = []; // {dir:1|-1, level}
+  let current = Math.round(closes[0]/brickSize)*brickSize;
+  let trend = 0; // 0=indefinito, 1=up, -1=down
+  for (let i=1;i<closes.length;i++) {
+    const price = closes[i];
+    if (price==null) continue;
+    let guard = 0;
+    while (guard++ < 100) {
+      if (trend>=0 && price >= current+brickSize) {
+        current += brickSize; trend = 1; bricks.push({dir:1, level:current});
+      } else if (trend<=0 && price <= current-brickSize) {
+        current -= brickSize; trend = -1; bricks.push({dir:-1, level:current});
+      } else if (trend===1 && price <= current-2*brickSize) {
+        current -= brickSize; trend = -1; bricks.push({dir:-1, level:current});
+      } else if (trend===-1 && price >= current+2*brickSize) {
+        current += brickSize; trend = 1; bricks.push({dir:1, level:current});
+      } else break;
+    }
+  }
+  return bricks;
+}
+
+function drawRenkoCBOT(cbot) {
+  const closes = cbot.closes.filter(v=>v!=null);
+  const tr = calcATRSeries(cbot.highs, cbot.lows, cbot.closes);
+  const atrAvg = tr.reduce((a,b)=>a+b,0)/tr.length;
+  const brickSize = Math.max(5, Math.round(atrAvg/5)*5);
+
+  const bricks = buildRenkoBricks(closes, brickSize);
+  document.getElementById('renkoLabel').textContent =
+    `Mattone = ${brickSize} cents (ATR14 medio ≈ ${atrAvg.toFixed(1)}) · Verde = rialzo · Rosso = ribasso · Asse orizzontale = numero di mattoni (${bricks.length}), NON tempo`;
+
+  const N = bricks.length;
+  if (N < 2) { document.getElementById('renkoChart').innerHTML = '<div style="padding:20px;color:#868e96;font-size:11px">Dati insufficienti per il Renko</div>'; return; }
+
+  const W=700, H=220, PAD={l:54,r:20,t:8,b:20};
+  const PW=W-PAD.l-PAD.r, PH=H-PAD.t-PAD.b;
+  const levels = bricks.map(b=>b.level);
+  const mn = Math.min(...levels)-brickSize, mx = Math.max(...levels)+brickSize;
+  const bW = PW/N;
+  const sy = v=>scY(v,mn,mx,PAD.t,PH);
+  const svg = svgEl('svg',{width:W,height:H,style:'display:block;background:#fff'});
+
+  svgEl('rect',{x:PAD.l,y:PAD.t,width:PW,height:PH,fill:'#f8f9fa'},svg);
+  for(let g=0;g<=4;g++){
+    const y=PAD.t+PH/4*g;
+    svgEl('line',{x1:PAD.l,y1:y.toFixed(1),x2:PAD.l+PW,y2:y.toFixed(1),stroke:g===0||g===4?'#ced4da':'#e9ecef','stroke-width':g===0||g===4?.8:.4},svg);
+    txt(PAD.l-3,y+3,(mn+(mx-mn)/4*(4-g)).toFixed(0),'#adb5bd',6.5,'end',svg);
+  }
+
+  bricks.forEach((b,i)=>{
+    const x = PAD.l + i*bW;
+    const top = sy(b.level);
+    const bot = sy(b.level-brickSize*b.dir);
+    const y = Math.min(top,bot), h = Math.max(Math.abs(top-bot),1);
+    svgEl('rect',{x:(x+.5).toFixed(1),y:y.toFixed(1),width:Math.max(bW-1,1).toFixed(1),height:h.toFixed(1),
+      fill:b.dir>0?'#2f9e44':'#c92a2a',stroke:'#fff','stroke-width':.5},svg);
+  });
+
+  document.getElementById('renkoChart').appendChild(svg);
 }
 
 // ── ANTONACCI ────────────────────────────────────
