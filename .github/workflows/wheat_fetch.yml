@@ -2,7 +2,10 @@ name: RAPTOR Wheat — Daily Fetch
 
 on:
   schedule:
-    - cron: '30 5 * * 1-5'
+   schedule:
+    - cron: '0 8 * * 1-5'    # 10:00 ora italiana (CET)
+    - cron: '0 14 * * 1-5'   # 16:00 ora italiana (CET)
+    - cron: '0 17 * * 1-5'   # 19:00 ora italiana (CET) 
   workflow_dispatch:
 
 jobs:
