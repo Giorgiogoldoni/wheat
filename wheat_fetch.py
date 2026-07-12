@@ -251,6 +251,7 @@ def main():
                 sig='BUY2'
             elif zona in ('STOP','USCITA'): sig='SELL'
             whl_signals.append(sig)
+        whl_signals = [None]*25 + whl_signals  # fix: allinea signals a closes (era disallineato di 25 barre)
 
         # Antonacci su 3WHL
         whl_antonacci = calc_antonacci(whl_closes, whl_dates)
@@ -355,35 +356,36 @@ def main():
         whl_sar       = calc_sar(whl_highs, whl_lows)
         whl_er        = calc_er(whl_closes, 10)
 
-        # Ricalcola solo ultimi segnali RAPTOR
-        whl_signals = output.get('whl', {}).get('signals', [None]*len(whl_closes))
-        avg_vol = sum(whl_volumes[-21:-1])/20 if len(whl_volumes)>21 else 1
-        for i in range(max(25, len(whl_signals)), len(whl_closes)):
-            kf=whl_kama_fast[i]; ks=whl_kama_slow[i]
-            if kf is None or ks is None:
-                whl_signals.append(None); continue
-            p=whl_closes[i]
-            if p>kf and kf>ks:   zona='LONG_CONF'
-            elif p>kf and p>ks:  zona='LONG_EARLY'
-            elif p<ks:           zona='STOP' if (ks-p)/ks*100>2 else 'USCITA'
-            else:                zona='GRIGIA'
-            vr=whl_volumes[i]/avg_vol if avg_vol>0 else 1
-            gap_ok=ks>0 and abs(kf-ks)/ks>=0.003
-            ao=whl_ao[i] if i<len(whl_ao) else 0
-            sig=None
-            baff=0
-            for j in range(max(0,i-5),i+1):
-                if whl_kama_fast[j] and whl_closes[j]>whl_kama_fast[j]: baff+=1
-                else: baff=0
-            if zona=='LONG_CONF' and ao>0 and vr>=2 and baff>=3 and whl_er[i]>=0.35 and gap_ok:
-                sig='BUY3'
-            elif zona=='LONG_EARLY' and ao>0 and vr>=1.5 and baff>=2 and whl_er[i]>=0.35:
-                sig='BUY2'
-            elif zona in ('STOP','USCITA'): sig='SELL'
-            if len(whl_signals) <= i:
-                whl_signals.append(sig)
-            else:
-                whl_signals[i] = sig
+        # Ricalcola i segnali RAPTOR (ricalcolo completo per garantire l'allineamento)
+        def calc_signals(closes, kama_fast, kama_slow, volumes, ao_arr, er_arr):
+            signals = []
+            avg_vol = sum(volumes[-21:-1])/20 if len(volumes)>21 else 1
+            for i in range(25, len(closes)):
+                kf=kama_fast[i]; ks=kama_slow[i]
+                if kf is None or ks is None:
+                    signals.append(None); continue
+                p=closes[i]
+                if p>kf and kf>ks:   zona='LONG_CONF'
+                elif p>kf and p>ks:  zona='LONG_EARLY'
+                elif p<ks:           zona='STOP' if (ks-p)/ks*100>2 else 'USCITA'
+                else:                zona='GRIGIA'
+                vr=volumes[i]/avg_vol if avg_vol>0 else 1
+                gap_ok=ks>0 and abs(kf-ks)/ks>=0.003
+                ao=ao_arr[i] if i<len(ao_arr) else 0
+                sig=None
+                baff=0
+                for j in range(max(0,i-5),i+1):
+                    if kama_fast[j] and closes[j]>kama_fast[j]: baff+=1
+                    else: baff=0
+                if zona=='LONG_CONF' and ao>0 and vr>=2 and baff>=3 and er_arr[i]>=0.35 and gap_ok:
+                    sig='BUY3'
+                elif zona=='LONG_EARLY' and ao>0 and vr>=1.5 and baff>=2 and er_arr[i]>=0.35:
+                    sig='BUY2'
+                elif zona in ('STOP','USCITA'): sig='SELL'
+                signals.append(sig)
+            return [None]*25 + signals
+
+        whl_signals = calc_signals(whl_closes, whl_kama_fast, whl_kama_slow, whl_volumes, whl_ao, whl_er)
 
         def fmt(arr):
             return [round(v,4) if v is not None else None for v in arr]
